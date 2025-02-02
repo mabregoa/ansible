@@ -1,0 +1,96 @@
+# filter_plugins/cron_to_win_task.py
+
+from datetime import datetime
+
+def cron_to_win_task(cron_expr):
+    # Dividir la expresión cron en sus componentes
+    components = cron_expr.split()
+    minute, hour, day_of_month, month, day_of_week = components[:5]
+    year = components[5] if len(components) > 5 else "*"
+
+    # Convertir minutos
+    if minute == "*":
+        start_minute = "0"
+        interval_minutes = "1"
+    elif minute.startswith("*/"):
+        start_minute = "0"
+        interval_minutes = minute[2:]
+    elif "-" in minute and "/" in minute:
+        start_minute, end_interval = minute.split("-")
+        start_minute, interval_minutes = start_minute.split("/")
+    else:
+        start_minute = minute
+        interval_minutes = "1"
+
+    # Convertir horas
+    if hour == "*":
+        start_hour = "0"
+        interval_hours = "1"
+    elif hour.startswith("*/"):
+        start_hour = "0"
+        interval_hours = hour[2:]
+    elif "-" in hour and "/" in hour:
+        start_hour, end_interval = hour.split("-")
+        start_hour, interval_hours = start_hour.split("/")
+    else:
+        start_hour = hour
+        interval_hours = "1"
+
+    # Convertir días de la semana
+    if day_of_week == "*":
+        days_of_week = None
+    elif "-" in day_of_week or "," in day_of_week:
+        days_of_week = day_of_week.replace("-", ",").split(",")
+    else:
+        days_of_week = [day_of_week]
+
+    # Convertir días del mes
+    if day_of_month == "*":
+        days_of_month = None
+    elif day_of_month.startswith("*/"):
+        days_of_month = [str(i) for i in range(1, 32, int(day_of_month[2:]))]
+    elif "," in day_of_month:
+        days_of_month = day_of_month.split(",")
+    else:
+        days_of_month = [day_of_month]
+
+    # Convertir meses
+    if month == "*":
+        months = None
+    elif month.startswith("*/"):
+        months = [str(i) for i in range(1, 13, int(month[2:]))]
+    else:
+        months = [month]
+
+    # Crear el diccionario con el formato adecuado para win_schedule_task
+    task_trigger = {
+        "type": "daily",
+        "start_boundary": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "enabled": True,
+        "schedule": {
+            "repeat_every": f"PT{interval_hours}H{interval_minutes}M",
+            "start_time": f"{start_hour}:{start_minute}:00",
+        },
+    }
+
+    if days_of_week:
+        task_trigger["type"] = "weekly"
+        task_trigger["schedule"]["days_of_week"] = days_of_week
+
+    if days_of_month:
+        task_trigger["type"] = "monthly"
+        task_trigger["schedule"]["days_of_month"] = days_of_month
+
+    if months:
+        task_trigger["schedule"]["months"] = months
+
+    if year != "*":
+        task_trigger["schedule"]["years"] = [year]
+
+    return task_trigger
+
+class FilterModule(object):
+    def filters(self):
+        return {
+            'cron_to_win_task': cron_to_win_task
+        }
